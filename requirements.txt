@@ -1,0 +1,18 @@
+# ── Core (available on Airflow server) ───────────────────────────────────────
+pandas>=2.0
+requests>=2.28
+python-dotenv>=1.0
+
+# ── Local exploration only (not required on Airflow server) ──────────────────
+yfinance>=0.2          # convenient local data pull; replaced by requests in DAG
+psycopg2-binary>=2.9   # direct PG connection for advanced admin
+sqlalchemy>=2.0        # ORM layer for local exploration
+
+# ── Atoti (local OLAP cube – Notebook 02) ───────────────────────────────────
+# atoti[jupyterlab]     # uncomment when running the Atoti notebook locally
+
+# ── Notebook environment ─────────────────────────────────────────────────────
+jupyter>=1.0
+ipykernel>=6.0
+matplotlib>=3.7
+seaborn>=0.13
