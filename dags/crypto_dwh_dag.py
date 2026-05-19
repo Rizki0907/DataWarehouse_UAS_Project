@@ -41,14 +41,14 @@ with DAG(
         context["ti"].xcom_push(key="fng_rows", value=len(df))
 
     def _transform(**context):
-        from crypto_dwh.transform import run_transform
+        from src.crypto_dwh.transform import run_transform
         run_ts = context["ts_nodash"]
         result = run_transform(run_ts=run_ts)
         context["ti"].xcom_push(key="fact_daily_rows", value=len(result["fact_market_daily"]))
         context["ti"].xcom_push(key="fact_hourly_rows", value=len(result["fact_market_hourly"]))
 
     def _load_supabase(**context):
-        from crypto_dwh.load_supabase import run_load
+        from src.crypto_dwh.load_supabase import run_load
         run_ts = context["ts_nodash"]
         run_load(run_ts=run_ts)
 
