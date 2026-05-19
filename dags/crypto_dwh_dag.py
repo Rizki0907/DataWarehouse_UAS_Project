@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 
 from airflow import DAG
-from airflow.operators.python import PythonOperator
+from airflow.providers.standard.operators.python import PythonOperator
 
 default_args = {
     "owner": "crypto_dwh_team",
@@ -22,13 +22,13 @@ with DAG(
 ) as dag:
 
     def _extract_yahoo(**context):
-        from crypto_dwh.extract_yahoo import fetch_all_symbols
+        from src.crypto_dwh.extract_yahoo import fetch_all_symbols
         run_ts = context["ts_nodash"]
         results = fetch_all_symbols(run_ts=run_ts)
         context["ti"].xcom_push(key="ohlcv_symbols", value=list(results.keys()))
 
     def _extract_fng(**context):
-        from crypto_dwh.extract_fng import fetch_fng
+        from src.crypto_dwh.extract_fng import fetch_fng
         run_ts = context["ts_nodash"]
         df = fetch_fng(run_ts=run_ts)
         context["ti"].xcom_push(key="fng_rows", value=len(df))
