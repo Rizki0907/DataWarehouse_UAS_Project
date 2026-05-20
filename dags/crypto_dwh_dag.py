@@ -43,6 +43,11 @@ def _run_etl_pipeline(**context):
 
 
 def _refresh_materialized_views(**context):
+    if PROJECT_ROOT not in sys.path:
+        sys.path.insert(0, PROJECT_ROOT)
+    from dotenv import load_dotenv
+    load_dotenv(f"{PROJECT_ROOT}/.env", override=False)
+
     supabase_url = os.getenv("SUPABASE_URL")
     supabase_key = os.getenv("SUPABASE_KEY")
     headers = {
