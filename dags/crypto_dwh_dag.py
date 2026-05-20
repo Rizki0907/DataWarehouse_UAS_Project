@@ -1,13 +1,11 @@
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from airflow import DAG
 from airflow.providers.standard.operators.python import PythonOperator
 
-_SRC_PATH = Path(__file__).resolve().parents[1] / "src"
-if str(_SRC_PATH) not in sys.path:
-    sys.path.insert(0, str(_SRC_PATH))
+PROJECT_ROOT = str(Path(__file__).resolve().parents[1])
 
 default_args = {
     "owner": "kelompok4_int24",
@@ -28,6 +26,8 @@ with DAG(
 ) as dag:
 
     def _extract_yahoo(**context):
+        if PROJECT_ROOT not in sys.path:
+            sys.path.insert(0, PROJECT_ROOT)
         from src.crypto_dwh.extract_yahoo import fetch_all_symbols
         run_ts = context["ts_nodash"]
         results = fetch_all_symbols(run_ts=run_ts)
@@ -35,12 +35,16 @@ with DAG(
         context["ti"].xcom_push(key="ohlcv_total_rows", value=sum(len(df) for df in results.values()))
 
     def _extract_fng(**context):
+        if PROJECT_ROOT not in sys.path:
+            sys.path.insert(0, PROJECT_ROOT)
         from src.crypto_dwh.extract_fng import fetch_fng
         run_ts = context["ts_nodash"]
         df = fetch_fng(run_ts=run_ts)
         context["ti"].xcom_push(key="fng_rows", value=len(df))
 
     def _transform(**context):
+        if PROJECT_ROOT not in sys.path:
+            sys.path.insert(0, PROJECT_ROOT)
         from src.crypto_dwh.transform import run_transform
         run_ts = context["ts_nodash"]
         result = run_transform(run_ts=run_ts)
@@ -48,6 +52,8 @@ with DAG(
         context["ti"].xcom_push(key="fact_hourly_rows", value=len(result["fact_market_hourly"]))
 
     def _load_supabase(**context):
+        if PROJECT_ROOT not in sys.path:
+            sys.path.insert(0, PROJECT_ROOT)
         from src.crypto_dwh.load_supabase import run_load
         run_ts = context["ts_nodash"]
         run_load(run_ts=run_ts)
