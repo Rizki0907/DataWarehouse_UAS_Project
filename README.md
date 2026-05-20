@@ -61,6 +61,29 @@ To optimize query performance, the database layer (PostgreSQL) is configured wit
 
 ---
 
+## Data Analysis & OLAP Cubes
+
+The analytical layer provides detailed explorations located in the `notebooks/` directory:
+
+### 1. Exploratory Data Analysis (EDA) - [`notebooks/eda.ipynb`](file:///notebooks/eda.ipynb)
+Provides comprehensive visualizations and statistical evaluations:
+* Missing value evaluation and dataset consistency checks.
+* Descriptive statistics per asset symbol.
+* Multi-asset price trends, 7D volatility, and RSI indicators.
+* Fear & Greed Index distribution and its correlation (Pearson score) to daily asset returns.
+* Volume anomaly calculations based on Z-score thresholds.
+
+### 2. Atoti DataMart & OLAP Cube - [`notebooks/atoti.ipynb`](file:///notebooks/atoti.ipynb)
+Spins up a multidimensional OLAP Cube using **Atoti** with five defined analytical targets:
+* **T1: Volatility Profile**: Rata-rata 7D volatility and daily returns rolled up by year, quarter, and asset.
+* **T2: Sentiment vs. Returns**: Correlation check mapping sentiment categories to price return impacts.
+* **T3: Trend Distribution**: Number of days in bullish vs. bearish trends sliced across the calendar time hierarchy.
+* **T4: Volume Anomaly & Price Impact**: Analysis of average returns and volumes during anomalies.
+* **T5: RSI Momentum**: Heatmap distribution cross-referencing RSI signals and trend labels per asset.
+* **Interactive Widgets**: Interactive pivot tables and dashboard server instance link enabled for visual drill-downs.
+
+---
+
 ## Directory Structure
 
 ```text
@@ -79,8 +102,8 @@ To optimize query performance, the database layer (PostgreSQL) is configured wit
 │   ├── 02_olap.sql              # Partition migration, indices, & materialized views
 │   └── 03_benchmark.sql         # Performance tuning test scripts and queries
 ├── notebooks/
-│   ├── 01_eda.ipynb             # Exploratory Data Analysis & visualizations (Pending)
-│   └── 02_atoti_cube.ipynb      # Multidimensional OLAP cube using Atoti (Pending)
+│   ├── eda.ipynb                # Exploratory Data Analysis & visualizations (Completed)
+│   └── atoti.ipynb              # Multidimensional OLAP cube using Atoti (Completed)
 └── requirements.txt             # Project dependencies list
 ```
 
@@ -117,9 +140,14 @@ Execute the SQL scripts in Supabase SQL Editor in the following order:
 Run the full orchestrator to scrape, transform, and load data:
 ```bash
 python -m src.crypto_dwh.pipeline
-python -m src.crypto_dwh.transform
-python -m src.crypto_dwh.load_supabase
 ```
+
+### 5. Launching Notebooks
+Launch Jupyter Notebook to view analyses or explore the OLAP cube:
+```bash
+jupyter notebook
+```
+Open `notebooks/eda.ipynb` or `notebooks/atoti.ipynb` to execute the code.
 
 ---
 
