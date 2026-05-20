@@ -1,5 +1,5 @@
-import sys
 import os
+import sys
 import requests
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -8,6 +8,19 @@ from airflow import DAG
 from airflow.providers.standard.operators.python import PythonOperator
 
 PROJECT_ROOT = str(Path(__file__).resolve().parents[1])
+AIRFLOW_DATA_DIR = "/opt/airflow/crypto_dwh_data"
+
+
+def _setup_env():
+    """Inject project root to sys.path and set DATA_DIR before any src import."""
+    os.environ["DATA_DIR"] = AIRFLOW_DATA_DIR
+    if PROJECT_ROOT not in sys.path:
+        sys.path.insert(0, PROJECT_ROOT)
+    from dotenv import load_dotenv
+    load_dotenv(f"{PROJECT_ROOT}/.env", override=False)
+    for sub in ("raw", "processed", "sample"):
+        Path(f"{AIRFLOW_DATA_DIR}/{sub}").mkdir(parents=True, exist_ok=True)
+
 
 default_args = {
     "owner": "kelompok4_int24",
@@ -18,38 +31,57 @@ default_args = {
 }
 
 
-def _run_etl_pipeline(**context):
-    if PROJECT_ROOT not in sys.path:
-        sys.path.insert(0, PROJECT_ROOT)
+def _extract_yahoo(**context):
+    _setup_env()
+    import pandas as pd
+    from src.crypto_dwh.extract_yahoo import fetch_all_symbols
+    from src.crypto_dwh.config import Config
 
-    from src.crypto_dwh.pipeline import run_extraction
+    run_ts = context["ts_nodash"]
+    ohlcv_dict = fetch_all_symbols(run_ts=run_ts, save_raw=True)
+    combined = pd.concat(ohlcv_dict.values(), ignore_index=True)
+    out_path = Config.PROCESSED_DIR / f"ohlcv_all_{run_ts}.csv"
+    combined.to_csv(out_path, index=False)
+    context["ti"].xcom_push(key="ohlcv_rows", value=len(combined))
+    context["ti"].xcom_push(key="ohlcv_symbols", value=list(ohlcv_dict.keys()))
+
+
+def _extract_fng(**context):
+    _setup_env()
+    from src.crypto_dwh.extract_fng import fetch_fng
+    from src.crypto_dwh.config import Config
+
+    run_ts = context["ts_nodash"]
+    df = fetch_fng(run_ts=run_ts, save_raw=True)
+    out_path = Config.PROCESSED_DIR / f"fng_{run_ts}.csv"
+    df.to_csv(out_path, index=False)
+    context["ti"].xcom_push(key="fng_rows", value=len(df))
+
+
+def _transform(**context):
+    _setup_env()
     from src.crypto_dwh.transform import run_transform
+
+    run_ts = context["ts_nodash"]
+    result = run_transform(run_ts=run_ts)
+    context["ti"].xcom_push(key="fact_daily_rows", value=len(result["fact_market_daily"]))
+    context["ti"].xcom_push(key="fact_hourly_rows", value=len(result["fact_market_hourly"]))
+
+
+def _load_supabase(**context):
+    _setup_env()
     from src.crypto_dwh.load_supabase import run_load
 
     run_ts = context["ts_nodash"]
-
-    # Phase 1: Extract (returns in-memory dict, no filesystem dependency)
-    extraction_result = run_extraction(run_ts=run_ts, save_raw=False, save_snapshots=False)
-
-    # Phase 2: Transform (receives in-memory data directly)
-    transform_result = run_transform(extraction_result=extraction_result, run_ts=run_ts)
-
-    # Phase 3: Load to Supabase
-    run_load(run_ts=run_ts, transform_result=transform_result)
-
-    # Push summary to XCom
-    context["ti"].xcom_push(key="fact_daily_rows", value=len(transform_result["fact_market_daily"]))
-    context["ti"].xcom_push(key="fact_hourly_rows", value=len(transform_result["fact_market_hourly"]))
+    run_load(run_ts=run_ts)
 
 
 def _refresh_materialized_views(**context):
-    if PROJECT_ROOT not in sys.path:
-        sys.path.insert(0, PROJECT_ROOT)
-    from dotenv import load_dotenv
-    load_dotenv(f"{PROJECT_ROOT}/.env", override=False)
+    _setup_env()
+    from src.crypto_dwh.config import Config
 
-    supabase_url = os.getenv("SUPABASE_URL")
-    supabase_key = os.getenv("SUPABASE_KEY")
+    supabase_url = Config.SUPABASE_URL
+    supabase_key = Config.SUPABASE_KEY
     headers = {
         "apikey": supabase_key,
         "Authorization": f"Bearer {supabase_key}",
@@ -77,14 +109,10 @@ with DAG(
     tags=["crypto", "data-warehouse", "int24", "kelompok4"],
 ) as dag:
 
-    t_etl = PythonOperator(
-        task_id="etl_pipeline",
-        python_callable=_run_etl_pipeline,
-    )
+    t_extract_yahoo = PythonOperator(task_id="extract_yahoo", python_callable=_extract_yahoo)
+    t_extract_fng   = PythonOperator(task_id="extract_fng",   python_callable=_extract_fng)
+    t_transform     = PythonOperator(task_id="transform",     python_callable=_transform)
+    t_load          = PythonOperator(task_id="load_supabase", python_callable=_load_supabase)
+    t_refresh       = PythonOperator(task_id="refresh_materialized_views", python_callable=_refresh_materialized_views)
 
-    t_refresh = PythonOperator(
-        task_id="refresh_materialized_views",
-        python_callable=_refresh_materialized_views,
-    )
-
-    t_etl >> t_refresh
+    [t_extract_yahoo, t_extract_fng] >> t_transform >> t_load >> t_refresh
