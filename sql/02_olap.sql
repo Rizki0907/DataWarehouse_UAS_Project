@@ -1,8 +1,3 @@
--- ================================================================
--- SECTION 1: PARTITION MIGRATION - fact_market_hourly
--- Partition by RANGE on date_key (year-based)
--- ================================================================
-
 ALTER TABLE fact_market_hourly DROP CONSTRAINT IF EXISTS fact_market_hourly_date_key_fkey;
 ALTER TABLE fact_market_hourly DROP CONSTRAINT IF EXISTS fact_market_hourly_asset_key_fkey;
 ALTER TABLE fact_market_hourly DROP CONSTRAINT IF EXISTS fact_market_hourly_pkey;
@@ -45,9 +40,9 @@ FROM fact_market_hourly_old;
 DROP TABLE fact_market_hourly_old;
 
 
--- ================================================================
+
 -- SECTION 2: INDEXES
--- ================================================================
+
 
 CREATE INDEX IF NOT EXISTS idx_fmh_asset_date
     ON fact_market_hourly (asset_key, date_key);
@@ -72,9 +67,9 @@ CREATE INDEX IF NOT EXISTS idx_dim_time_year_month
     ON dim_time (year, month);
 
 
--- ================================================================
+
 -- SECTION 3: MATERIALIZED VIEWS
--- ================================================================
+
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS mv_monthly_volatility AS
 SELECT
@@ -139,9 +134,22 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_asset_performance
     ON mv_asset_performance (symbol);
 
 
--- ================================================================
+-- SECTION 3b: RPC HELPER FUNCTION (required by Airflow DAG via Supabase REST API)
+-- Run this once so Airflow can call: POST /rest/v1/rpc/refresh_view {"view_name": "..."}
+
+CREATE OR REPLACE FUNCTION public.refresh_view(view_name text)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    EXECUTE format('REFRESH MATERIALIZED VIEW CONCURRENTLY %I', view_name);
+END;
+$$;
+
+
 -- SECTION 4: REFRESH COMMANDS (run after each ETL cycle)
--- ================================================================
+
 
 REFRESH MATERIALIZED VIEW CONCURRENTLY mv_monthly_volatility;
 REFRESH MATERIALIZED VIEW CONCURRENTLY mv_sentiment_vs_return;
