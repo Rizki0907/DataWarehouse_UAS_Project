@@ -111,7 +111,7 @@ def _audit_log(**context):
     from src.crypto_dwh.load_supabase import log_audit
     
     run_id = context["run_id"]
-    execution_date = context["execution_date"].isoformat()
+    execution_date = context["ts"]
     # Calculate duration
     dag_run = context["dag_run"]
     start_time = dag_run.start_date
