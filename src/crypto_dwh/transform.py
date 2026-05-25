@@ -194,6 +194,50 @@ def build_fact_market_daily(
     df = df.merge(dim_sentiment[["sentiment_key", "fng_classification"]], on="fng_classification", how="left")
     df = df.merge(dim_trend[["trend_key", "trend_label", "rsi_signal"]], on=["trend_label", "rsi_signal"], how="left")
 
+    # --- MACHINE LEARNING (Sprint 2) ---
+    # 1. Unsupervised ML: Market Anomaly Detection (Isolation Forest)
+    try:
+        from sklearn.ensemble import IsolationForest
+        import numpy as np
+        
+        # Fitur untuk deteksi anomali: Return, Volatility, RSI, Volume Z-Score
+        features_anomaly = ["daily_return", "volatility_7d", "rsi_14", "volume_zscore"]
+        X_anomaly = df[features_anomaly].fillna(0) # Isi NA sementara untuk fit
+        
+        # Fit model Isolation Forest (asumsi 1% data paling aneh adalah anomali)
+        iso_forest = IsolationForest(contamination=0.01, random_state=42)
+        anomaly_preds = iso_forest.fit_predict(X_anomaly)
+        
+        # Hasilnya: -1 = Anomaly, 1 = Normal
+        df["is_market_anomaly_ml"] = np.where(anomaly_preds == -1, True, False)
+        logger.info("Isolation Forest: Ditemukan %d hari anomali market", df["is_market_anomaly_ml"].sum())
+    except ImportError:
+        logger.warning("Scikit-learn tidak terinstall. Skip Isolation Forest.")
+        df["is_market_anomaly_ml"] = False
+
+    # 2. Supervised ML: Predict Next Day Fear & Greed Label (Random Forest)
+    try:
+        import pickle
+        from pathlib import Path
+        
+        model_path = Path(__file__).resolve().parent / "models" / "fng_rf_model.pkl"
+        if model_path.exists():
+            with open(model_path, "rb") as f:
+                rf_model = pickle.load(f)
+                
+            features_pred = ["daily_return", "volatility_7d", "rsi_14", "volume_zscore", "fng_value"]
+            X_pred = df[features_pred].fillna(0)
+            
+            df["predicted_fng_label_tomorrow"] = rf_model.predict(X_pred)
+            logger.info("Random Forest: Berhasil memprediksi sentimen esok hari untuk %d baris", len(df))
+        else:
+            logger.warning("Model RF tidak ditemukan di %s. Skip prediksi.", model_path)
+            df["predicted_fng_label_tomorrow"] = "unknown"
+    except Exception as e:
+        logger.error("Gagal melakukan prediksi ML: %s", e)
+        df["predicted_fng_label_tomorrow"] = "unknown"
+    # -----------------------------------
+
     df["fact_key"] = range(1, len(df) + 1)
 
     cols = [
@@ -201,6 +245,7 @@ def build_fact_market_daily(
         "open", "high", "low", "close", "volume",
         "fng_value", "daily_return", "ma7", "ma30", "volatility_7d",
         "rsi_14", "volume_zscore", "is_volume_anomaly",
+        "is_market_anomaly_ml", "predicted_fng_label_tomorrow"
     ]
     df = df[[c for c in cols if c in df.columns]]
     df.sort_values(["asset_key", "date_key"], inplace=True)
