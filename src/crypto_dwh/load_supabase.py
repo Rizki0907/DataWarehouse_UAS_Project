@@ -127,6 +127,32 @@ def run_load(transform_result: Optional[dict] = None, run_ts: Optional[str] = No
     logger.info("load complete | tables loaded: %s", list(tables.keys()))
 
 
+def log_audit(run_id: str, execution_date: str, status: str, duration_seconds: float, rows_extracted: dict, rows_transformed: int, error_message: str = "") -> None:
+    """Mengirim log eksekusi ETL ke tabel fact_etl_audit di Supabase."""
+    url = f"{Config.SUPABASE_URL}/rest/v1/fact_etl_audit"
+    headers = _make_headers()
+    # Hapus Prefer resolution=merge-duplicates karena ini INSERT biasa
+    headers["Prefer"] = "return=minimal"
+    
+    payload = {
+        "run_id": run_id,
+        "execution_date_utc": execution_date,
+        "status": status,
+        "duration_seconds": duration_seconds,
+        "rows_extracted_ohlcv": rows_extracted.get("ohlcv", 0),
+        "rows_extracted_fng": rows_extracted.get("fng", 0),
+        "rows_transformed": rows_transformed,
+        "error_message": error_message
+    }
+    
+    try:
+        resp = requests.post(url, json=payload, headers=headers, timeout=10)
+        resp.raise_for_status()
+        logger.info("Audit log tersimpan sukses di fact_etl_audit (status: %s)", status)
+    except Exception as e:
+        logger.error("Gagal menyimpan audit log: %s", e)
+
+
 if __name__ == "__main__":
     import sys
     logging.basicConfig(

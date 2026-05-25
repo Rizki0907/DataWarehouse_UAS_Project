@@ -99,6 +99,42 @@ def _refresh_materialized_views(**context):
             raise RuntimeError(f"refresh {view} failed: {resp.status_code} {resp.text}")
 
 
+def _data_quality(**context):
+    _setup_env()
+    from src.crypto_dwh.data_quality import validate_extraction_data
+    run_ts = context["ts_nodash"]
+    validate_extraction_data(run_ts)
+
+
+def _audit_log(**context):
+    _setup_env()
+    from src.crypto_dwh.load_supabase import log_audit
+    
+    run_id = context["run_id"]
+    execution_date = context["execution_date"].isoformat()
+    # Calculate duration
+    dag_run = context["dag_run"]
+    start_time = dag_run.start_date
+    end_time = datetime.now(start_time.tzinfo)
+    duration = (end_time - start_time).total_seconds()
+    
+    # Retrieve stats from XCom
+    ohlcv_rows = context["ti"].xcom_pull(task_ids="extract_yahoo", key="ohlcv_rows") or 0
+    fng_rows = context["ti"].xcom_pull(task_ids="extract_fng", key="fng_rows") or 0
+    fact_daily_rows = context["ti"].xcom_pull(task_ids="transform", key="fact_daily_rows") or 0
+    
+    rows_extracted = {"ohlcv": ohlcv_rows, "fng": fng_rows}
+    
+    log_audit(
+        run_id=run_id,
+        execution_date=execution_date,
+        status="SUCCESS",
+        duration_seconds=duration,
+        rows_extracted=rows_extracted,
+        rows_transformed=fact_daily_rows
+    )
+
+
 with DAG(
     dag_id="crypto_dwh_kelompok4_int24",
     default_args=default_args,
@@ -111,8 +147,10 @@ with DAG(
 
     t_extract_yahoo = PythonOperator(task_id="extract_yahoo", python_callable=_extract_yahoo)
     t_extract_fng   = PythonOperator(task_id="extract_fng",   python_callable=_extract_fng)
+    t_data_quality  = PythonOperator(task_id="data_quality",  python_callable=_data_quality)
     t_transform     = PythonOperator(task_id="transform",     python_callable=_transform)
     t_load          = PythonOperator(task_id="load_supabase", python_callable=_load_supabase)
     t_refresh       = PythonOperator(task_id="refresh_materialized_views", python_callable=_refresh_materialized_views)
+    t_audit         = PythonOperator(task_id="audit_log",     python_callable=_audit_log)
 
-    [t_extract_yahoo, t_extract_fng] >> t_transform >> t_load >> t_refresh
+    [t_extract_yahoo, t_extract_fng] >> t_data_quality >> t_transform >> t_load >> t_refresh >> t_audit
