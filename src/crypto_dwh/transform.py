@@ -141,15 +141,21 @@ def build_dim_sentiment() -> pd.DataFrame:
     return df
 
 
+_TREND_BINS = [
+    {"trend_key": 1, "trend_label": "bearish", "rsi_signal": "neutral"},
+    {"trend_key": 2, "trend_label": "bearish", "rsi_signal": "overbought"},
+    {"trend_key": 3, "trend_label": "bearish", "rsi_signal": "oversold"},
+    {"trend_key": 4, "trend_label": "bullish", "rsi_signal": "neutral"},
+    {"trend_key": 5, "trend_label": "bullish", "rsi_signal": "overbought"},
+    {"trend_key": 6, "trend_label": "bullish", "rsi_signal": "oversold"},
+    {"trend_key": 7, "trend_label": "neutral", "rsi_signal": "neutral"},
+    {"trend_key": 8, "trend_label": "neutral", "rsi_signal": "overbought"},
+    {"trend_key": 9, "trend_label": "neutral", "rsi_signal": "oversold"},
+]
+
+
 def build_dim_trend(df_daily: pd.DataFrame) -> pd.DataFrame:
-    combos = (
-        df_daily[["trend_label", "rsi_signal"]]
-        .drop_duplicates()
-        .sort_values(["trend_label", "rsi_signal"])
-        .reset_index(drop=True)
-    )
-    combos["trend_key"] = combos.index + 1
-    df = combos[["trend_key", "trend_label", "rsi_signal"]]
+    df = pd.DataFrame(_TREND_BINS)
     logger.info("built dim_trend with %d rows", len(df))
     return df
 
