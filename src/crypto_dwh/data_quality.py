@@ -54,7 +54,7 @@ def validate_extraction_data(run_ts: str) -> None:
         raise DataQualityError("Data FnG kosong!")
         
     # Validasi: Nilai FnG harus berada di range 0-100
-    if not df_fng["value"].between(0, 100).all():
+    if not df_fng["fng_value"].between(0, 100).all():
         raise DataQualityError("Nilai Fear and Greed Index berada di luar batas normal (0-100)!")
         
     logger.info("✅ Data Quality Checks Berhasil! Data aman untuk diproses.")
