@@ -7,7 +7,7 @@ psycopg2-binary>=2.9
 sqlalchemy>=2.0        
 
 apache-airflow>=3.2.1
-atoti[jupyterlab]     # uncomment when running the Atoti notebook locally
+#atoti[jupyterlab]     # uncomment when running the Atoti notebook locally
 
 jupyter>=1.0
 ipykernel>=6.0
