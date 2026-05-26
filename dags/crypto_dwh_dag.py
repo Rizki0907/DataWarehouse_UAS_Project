@@ -139,7 +139,7 @@ with DAG(
     dag_id="crypto_dwh_kelompok4_int24",
     default_args=default_args,
     description="Crypto DWH Kelompok 4 INT24 - ETL pipeline: Yahoo Finance + Fear & Greed Index to Supabase.",
-    schedule="0 * * * *",
+    schedule="0 2 * * *",
     start_date=datetime(2025, 1, 1),
     catchup=False,
     tags=["crypto", "data-warehouse", "int24", "kelompok4"],
